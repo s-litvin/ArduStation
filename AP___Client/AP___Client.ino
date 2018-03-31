@@ -81,8 +81,9 @@ void handleRoot() {
 }
 
 void handleJs() {
-  page_content = "";
+  page_content = "<script src=\"https://code.jquery.com/jquery-3.3.1.min.js\" integrity=\"sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=\" crossorigin=\"anonymous\"></script>";
   page_content += "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.6.0/p5.js\" async=false></script><script src=\"https://rawgit.com/s-litvin/test/master/index.js\" async=false></script>";
+  
   sendPage();
 }
 

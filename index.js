@@ -8,4 +8,13 @@ function draw() {
 
     ellipse(width/2, height/2, 50, 50);
 
+
+
+}
+
+function mouseClicked() {
+    $.get("/settings", function(data, status){
+        alert('OK');
+        console.log(data);
+    });
 }
