@@ -82,7 +82,7 @@ void handleRoot() {
 
 void handleJs() {
   page_content = "";
-  page_content += "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.6.0/p5.js\"></script><script src=\"https://cdn.rawgit.com/s-litvin/test/master/index.js\"></script>";
+  page_content += "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.6.0/p5.js\" async=false></script><script src=\"https://rawgit.com/s-litvin/test/master/index.js\" async=false></script>";
   sendPage();
 }
 
