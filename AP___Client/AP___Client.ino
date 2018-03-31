@@ -82,7 +82,7 @@ void handleRoot() {
 
 void handleJs() {
   page_content = "";
-  page_content += "<script src=\"https://code.jquery.com/jquery-3.3.1.min.js\" integrity=\"sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=\" crossorigin=\"anonymous\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.6.0/p5.js\"></script><script src=\"https://github.com/shpikyliak/robot/blob/master/robot.js\" type=\"text/javascript\"></script>";
+  page_content += "<script src=\"https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.6.0/p5.js\"></script><script src=\"https://cdn.rawgit.com/s-litvin/test/master/index.js\"></script>";
   sendPage();
 }
 
