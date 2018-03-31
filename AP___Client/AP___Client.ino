@@ -1,18 +1,20 @@
-#include <DHT.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h> 
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <ArduinoJson.h>
-#include <CapacitiveSensor.h>
+#include <Servo.h>
 
 /* Set these to your desired credentials. */
-// Uncomment whatever type you're using!
-#define DHTTYPE DHT11   // DHT 11 
-#define DHTPIN 2        // GPIO2
-DHT dht(DHTPIN, DHTTYPE, 11);
 
-CapacitiveSensor   cs_12_13 = CapacitiveSensor(12,13);  // GPIO 12 & 13
+Servo servo1;
+Servo servo2;
+Servo servo3;
+Servo servo4;
+Servo servo5;
+Servo servo6;
+Servo servo7;
+Servo servo8;
 
 const char *ap_name = "ArduStation";
 const char *password = "qazxswedc";
@@ -39,7 +41,8 @@ int port_addr[]        = {128, 8};
 int token_addr[]       = {136, 32}; // {136, 16}
 
 
-ESP8266WebServer server(80);
+ESP8266WebServer server(8080);
+WiFiServer server2(80);
 
 void sendPage()
 {
@@ -195,6 +198,26 @@ String GPIOSelect(String param_name)
   return str;
 }
 
+void move() {
+       servo1.write(0);
+       delay(100);
+       servo2.write(0); 
+       delay(100);
+       servo3.write(0);
+       delay(100);
+       servo4.write(0); 
+       delay(100);
+       
+       servo4.write(60);
+       delay(100);
+       servo3.write(60); 
+       delay(100);
+       servo2.write(60);
+       delay(100);
+       servo1.write(60); 
+       delay(100);   
+}
+
 void setup() {
   delay(1000);
   EEPROM.begin(512);
@@ -207,6 +230,7 @@ void setup() {
 	IPAddress myIP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
 	Serial.println(myIP);
+
  
 	server.on("/", handleRoot);
   server.on("/control", handleJs);
@@ -239,10 +263,15 @@ void setup() {
       sendPage();
     }
   });
+  
 
 	server.begin();
+ 
+
 	Serial.println("HTTP server started");
   StartWiFi();
+
+   server2.begin();
   delay(3500);
 
   if (WiFi.status() == WL_CONNECTED && !stop_wifi) {
@@ -253,9 +282,140 @@ void setup() {
         return;
       }
   }
+
+
+
+  servo1.attach(5);
+  servo2.attach(4);
+  servo3.attach(0);
+  servo4.attach(2);
+  servo5.attach(14);
+  servo6.attach(12);
+  servo7.attach(13);
+  servo8.attach(15);
+ 
+  servo1.write(0);
+  servo2.write(0);
+  servo3.write(0);
+  servo4.write(0);
+  servo5.write(0);
+  servo6.write(0);
+  servo7.write(0);
+  servo8.write(0);
+
+  delay(100);
+
+  
 }
 
 void loop() {
-	server.handleClient();
+	//server.handleClient();
+  //move();
+
+
+  WiFiClient client = server2.available();
+  if (!client) {
+    servo1.write(0);
+    servo2.write(0);
+    servo3.write(0);
+    servo4.write(0);
+   
+  } else {
+
+  // Wait until the client sends some data
+  Serial.println("new client");
+  while(!client.available()){
+    delay(1);
+  }
+
+  // Read the first line of the request
+  String req = client.readStringUntil('\r');
+  Serial.println(req);
+  client.flush();
+
+
+  // Match the request
+
+  if (req == "/") {
+    handleRoot();
+  } else if (req.indexOf("/control") != -1) {
+    handleJs();
+  } else if (req.indexOf("/settings") != -1){
+
+      ///////
+      
+      // http://<ip address>/settings?ssid=SSID&pass=12345678
+    String s = server.arg("ssid");
+    String p = server.arg("pass");
+    page_title = "Settings";
+    if (s != "") {
+      saveSSIDAndPass(s, p);
+      s = getFromEEPROM(ssid_addr);
+      p = getFromEEPROM(pass_addr);
+      page_content = "Новая точка доступа " + s + " сохранена!";
+      sendPage();
+      StartWiFi();
+    } else {
+      int numSsid = WiFi.scanNetworks();
+      String options = "<select name=ssid>";
+      if (numSsid != -1) {
+        for (int thisNet = 0; thisNet < numSsid; thisNet++) {
+          String str(WiFi.SSID(thisNet));
+          options += "<option value=\"" + str + "\">";
+          if (getEncryptionType(WiFi.encryptionType(thisNet)) ==  "None") options += "*";
+          options += " " + str + " (" + String(WiFi.RSSI(thisNet)) + "dB)";
+          options += "</option>";   
+        }
+      } else options += "<option></option>";
+      options += "</select>";
+      page_content = "<form method=\"post\"><table><tr><td width=\"50%\" class=\"t_r\"><small>Имя точки доступа<small></td><td rowspan=2 class=\"t_l\">" + options + "</td></tr><tr><td class=\"t_r\"><small>Acces point name</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td width=\"50%\" class=\"t_r\"><small>Пароль<small></td><td rowspan=2 class=\"t_l\"><input type=\"password\" name=\"pass\"></td></tr><tr><td class=\"t_r\"><small>Password</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td></td><td class=\"t_l\"><input type=\"submit\" value=\"SAVE\"></td></tr></table></form>";
+      sendPage();
+    }
+      
+      
+      ///////
+
+      
+      
+      
+  } else if (req.indexOf("/moveR") != -1) {
+      servo1.write(0);
+      servo2.write(0);
+      servo3.write(0);
+      servo4.write(0);
+      client.flush();
+
+      // Prepare the response
+      String s = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\nGPIO is now R";
+      s += "</html>\n";
+    
+      // Send the response to the client
+      client.print(s);
+      delay(1);
+      Serial.println("Client disonnected");
+      delay(100);
+  
+  } else if (req.indexOf("/moveL") != -1) {
+      servo1.write(90);
+      servo2.write(90);
+      servo3.write(90);
+      servo4.write(90);
+      client.flush();
+
+      // Prepare the response
+      String s = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\nGPIO is now L";
+      s += "</html>\n";
+    
+      // Send the response to the client
+      client.print(s);
+      delay(1);
+      Serial.println("Client disonnected");
+      delay(100);
+  } 
+
+  client.flush();
+  }
+
+  
 }
 
