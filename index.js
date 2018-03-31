@@ -1,1 +1,1 @@
-alert('OK');
+function t() {alert('OK');}
