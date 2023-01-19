@@ -3,18 +3,9 @@
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <ArduinoJson.h>
-#include <Servo.h>
 
 /* Set these to your desired credentials. */
 
-Servo servo1;
-Servo servo2;
-Servo servo3;
-Servo servo4;
-Servo servo5;
-Servo servo6;
-Servo servo7;
-Servo servo8;
 
 const char *ap_name = "ArduStation";
 const char *password = "qazxswedc";
@@ -154,8 +145,8 @@ void StartWiFi()
       delay(1000); Serial.print(".");
     }
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("WiFi connected. IP address: " + WiFi.localIP());
-    } else Serial.println("Connecting to '" + ssid + "' with pass '" + pass + "' FAILED");
+      Serial.println(WiFi.localIP());
+    } else Serial.println("Connecting to WiFi FAILED");
   }
 }
 
@@ -183,6 +174,8 @@ String getEncryptionType(int thisType) {
     case ENC_TYPE_AUTO:
       return "Auto";
       break;
+    default:
+      return "WPA";
   }
 }
 /////////////////////////////// END Wi-Fi CLIENT ////////////////////////////////
@@ -196,26 +189,6 @@ String GPIOSelect(String param_name)
   }
   str += "</select>";
   return str;
-}
-
-void move() {
-       servo1.write(0);
-       delay(100);
-       servo2.write(0); 
-       delay(100);
-       servo3.write(0);
-       delay(100);
-       servo4.write(0); 
-       delay(100);
-       
-       servo4.write(60);
-       delay(100);
-       servo3.write(60); 
-       delay(100);
-       servo2.write(60);
-       delay(100);
-       servo1.write(60); 
-       delay(100);   
 }
 
 void setup() {
@@ -266,12 +239,11 @@ void setup() {
   
 
 	server.begin();
- 
 
 	Serial.println("HTTP server started");
   StartWiFi();
 
-   server2.begin();
+  server2.begin();
   delay(3500);
 
   if (WiFi.status() == WL_CONNECTED && !stop_wifi) {
@@ -282,43 +254,16 @@ void setup() {
         return;
       }
   }
-
-
-
-  servo1.attach(5);
-  servo2.attach(4);
-  servo3.attach(0);
-  servo4.attach(2);
-  servo5.attach(14);
-  servo6.attach(12);
-  servo7.attach(13);
-  servo8.attach(15);
- 
-  servo1.write(0);
-  servo2.write(0);
-  servo3.write(0);
-  servo4.write(0);
-  servo5.write(0);
-  servo6.write(0);
-  servo7.write(0);
-  servo8.write(0);
-
-  delay(100);
-
   
 }
 
 void loop() {
 	//server.handleClient();
-  //move();
 
 
   WiFiClient client = server2.available();
   if (!client) {
-    servo1.write(0);
-    servo2.write(0);
-    servo3.write(0);
-    servo4.write(0);
+    
    
   } else {
 
@@ -372,50 +317,10 @@ void loop() {
       sendPage();
     }
       
-      
-      ///////
-
-      
-      
-      
-  } else if (req.indexOf("/moveR") != -1) {
-      servo1.write(0);
-      servo2.write(0);
-      servo3.write(0);
-      servo4.write(0);
-      client.flush();
-
-      // Prepare the response
-      String s = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\nGPIO is now R";
-      s += "</html>\n";
-    
-      // Send the response to the client
-      client.print(s);
-      delay(1);
-      Serial.println("Client disonnected");
-      delay(100);
-  
-  } else if (req.indexOf("/moveL") != -1) {
-      servo1.write(90);
-      servo2.write(90);
-      servo3.write(90);
-      servo4.write(90);
-      client.flush();
-
-      // Prepare the response
-      String s = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\nGPIO is now L";
-      s += "</html>\n";
-    
-      // Send the response to the client
-      client.print(s);
-      delay(1);
-      Serial.println("Client disonnected");
-      delay(100);
-  } 
+  }
 
   client.flush();
   }
 
   
 }
-
