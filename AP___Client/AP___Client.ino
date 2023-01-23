@@ -146,7 +146,7 @@ void checkCron()
   
   // Timer 1 for HTTP
   unsigned long currentMillis1 = millis();
-  if (currentMillis1 - previousMillis1 >= interval1 && interval1 > 5000) {
+  if (just_started || (currentMillis1 - previousMillis1 >= interval1 && interval1 > 5000)) {
     Serial.println("Cron 1 triggered");
     previousMillis1 = currentMillis1;
 
@@ -161,45 +161,41 @@ void checkCron()
       delay(500);
     }
   }
-  
 
   // Timer 2 for Telegram
   unsigned long currentMillis2 = millis();
-  if (currentMillis2 - previousMillis2 >= interval2 && interval2 > 5000) {
+  if (just_started || (currentMillis2 - previousMillis2 >= interval2 && interval2 > 5000)) {
     Serial.println("Cron 2 triggered");
     previousMillis2 = currentMillis2;
 
+    WiFiClientSecure client2;
 
-      
-      WiFiClientSecure client2;
+    client2.setInsecure();
+    if (!client2.connect("api.telegram.org", 443)) {
+      Serial.println("connection failed to telegram");
+    } else {
+      HTTPClient http;
+      http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/sendMessage");
+      http.addHeader("Content-Type", "application/json");
 
-      client2.setInsecure();
-      if (!client2.connect("api.telegram.org", 443)) {
-        Serial.println("connection failed to telegram");
-      } else {
-        HTTPClient http;
-        http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/sendMessage");
-        http.addHeader("Content-Type", "application/json");
-
-        String httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🟢...\", \"disable_notification\": true}";
-        if (just_started) {
-          httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🕺🎉 Electricity is back!... \", \"disable_notification\": true}";
-          just_started = false;
-        }
-
-        int httpResponseCode = http.POST(httpRequestData);
-
-        Serial.print("Telegram response code: ");
-        Serial.println(httpResponseCode);
-        String payload = http.getString();
-        Serial.println(payload); 
-        http.end();
-
-        delay(100);
+      String httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🟢...\", \"disable_notification\": true}";
+      if (just_started) {
+        httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🕺🎉 Electricity is back!... \", \"disable_notification\": true}";
       }
-    
+
+      int httpResponseCode = http.POST(httpRequestData);
+
+      Serial.print("Telegram response code: ");
+      Serial.println(httpResponseCode);
+      String payload = http.getString();
+      Serial.println(payload); 
+      http.end();
+
+      delay(100);
+    }
   }
-  
+
+  just_started = false;
 }
 
 void reconnectWiFi()
@@ -329,6 +325,10 @@ void setup() {
   delay(200);
   EEPROM.begin(512);
   delay(200);
+  
+  interval1 = String(getFromEEPROM(url_addr1_timer)).toInt() * 1000;
+  interval2 = String(getFromEEPROM(url_addr2_timer)).toInt() * 1000;
+
   Serial.begin(115200);
   delay(100);
   Serial.println("");
