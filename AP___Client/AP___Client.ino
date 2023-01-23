@@ -12,6 +12,7 @@ const char * password = "qazxswedc";
 
 unsigned long previousMillis1 = 0;
 unsigned long previousMillis2 = 0;
+unsigned long previousMillisWiFi = 0;
 long interval1 = 10000;
 long interval2 = 20000;
 
@@ -26,7 +27,7 @@ unsigned long last_ping = 0;
 int ping_intrv = 15000;
 String page_title = "Страница управления ArduStation";
 String page_content = "Content";
-char css[] = "<style>.c1{position:absolute;left:15vw;right:15vw;background-color:#dedede;padding:20px;}ul.hr li{display:inline;margin-right:5px;}ul li{list-style-type:none;background-color:#ccc;border:1px solid #aaa;padding:10px;}ul.vert li{margin:4px;}a{color:black;text-decoration:none;}body{font-family:arial;}input{padding:5px;font-size:18px;line-height:18px;border:1;margin:0;}input[type=submit]{width:100%;}.t_l{text-align:left;}.t_r{text-align:right;}table{border:0;width:100%;}select{font-size:14px;line-height:14px;padding:9px}</style>";
+char css[] = "<style>.s_b{background-color:#eee;padding:5px}.p_p{padding-top:35px}.c1{position:absolute;left:15vw;right:15vw;background-color:#dedede;padding:20px;}ul.hr li{display:inline;margin-right:5px;}ul li{list-style-type:none;background-color:#ccc;border:1px solid #aaa;padding:10px;}ul.vert li{margin:4px;}a{color:black;text-decoration:none;}body{font-family:arial;}input{padding:4px;font-size:14px;line-height:18px;border:1;margin:0;}input[type=submit]{width:50%;}.t_l{text-align:left;}.t_r{text-align:right;}table{border:0;width:100%;}select{font-size:14px;line-height:14px;padding:9px}</style>";
 String status_message = "&status=Hello! I run and sends the data. Your esp8266.";
 
 bool stop_wifi = false;
@@ -53,7 +54,7 @@ void sendHead() {
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
   server.sendContent("<html><head><meta charset=\"utf-8\"><title>" + page_title + "</title>" + css + "</head>");
-  server.sendContent("<body>");
+  server.sendContent("<body><div><span class=\"s_b\"><a href=\"/\">Home</a></span><span class=\"s_b\"><a href=\"/settings\">Settings</a></span><span class=\"s_b\"><a href=\"/events\">Events</a></span></div>");
 }
 
 void sendTail() {
@@ -131,34 +132,36 @@ void handleEvents ()
 
     sendHead();
     server.sendContent("<form method=\"post\">");
-    server.sendContent("<p>http:// <input type=\"text\" name=\"url1\" value=\"" + host1 + "\"> / <input type=\"text\" name=\"url1_params\" value=\"" + host1_params + "\"> ⏱️: <input type=\"number\" name=\"url1_timer\" size=6 value=\"" + host1_timer + "\">(sec)</p>");
-    server.sendContent("<p>Telegram bot API token: <input type=\"text\" name=\"url2\" value=\"" + host2 + "\"> Chat id:<input type=\"text\" name=\"chat_id\" value=\"" + chatId + "\"> ⏱️: <input type=\"number\" name=\"url2_timer\" size=6 value=\"" + host2_timer + "\">(sec)</p>");
-    server.sendContent("<input type=\"submit\" value=\"SAVE\"></form>");
+    server.sendContent("<p class=\"p_p\">Web webhook URL:</p>http:// <input type=\"text\" name=\"url1\" value=\"" + host1 + "\"> / <input type=\"text\" name=\"url1_params\" value=\"" + host1_params + "\"> ⏱️: <input type=\"text\" name=\"url1_timer\" size=6 value=\"" + host1_timer + "\">(sec)");
+    server.sendContent("<p class=\"p_p\">Telegram bot API token:</p><input type=\"text\" name=\"url2\" value=\"" + host2 + "\"> Chat id:<input type=\"text\" name=\"chat_id\" value=\"" + chatId + "\"> ⏱️: <input type=\"text\" name=\"url2_timer\" size=6 value=\"" + host2_timer + "\">(sec)");
+    server.sendContent("<p class=\"p_p\"><input type=\"submit\" value=\"SAVE\"></p></form>");
     sendTail();
 }
 
 void checkCron()
 {
+  if (WiFi.status() != WL_CONNECTED || stop_wifi) {
+    return;
+  }
+  
   // Timer 1 for HTTP
   unsigned long currentMillis1 = millis();
-  if ((currentMillis1 - previousMillis1 >= interval1 && interval1 > 5000)) {
+  if (currentMillis1 - previousMillis1 >= interval1 && interval1 > 5000) {
     Serial.println("Cron 1 triggered");
     previousMillis1 = currentMillis1;
 
-    if (WiFi.status() == WL_CONNECTED && !stop_wifi) {
-
-      WiFiClient client;
-      if (!client.connect(String(getFromEEPROM(url_addr1)), 80)) {
-        Serial.println("connection failed to " + String(getFromEEPROM(url_addr1)));
-      } else {
-        client.print(String("GET ") + "/" + String(getFromEEPROM(url_addr1_params)) + " HTTP/1.1\r\n" +
-                    "Host: " + String(getFromEEPROM(url_addr1)) + "\r\n" + 
-                    "Connection: close\r\n\r\n");
-        Serial.println("Request " + String(getFromEEPROM(url_addr1_params)) +" to " + String(getFromEEPROM(url_addr1)) + "  sent! )))");
-        delay(500);
-      }
+    WiFiClient client;
+    if (!client.connect(String(getFromEEPROM(url_addr1)), 80)) {
+      Serial.println("connection failed to " + String(getFromEEPROM(url_addr1)));
+    } else {
+      client.print(String("GET ") + "/" + String(getFromEEPROM(url_addr1_params)) + " HTTP/1.1\r\n" +
+                  "Host: " + String(getFromEEPROM(url_addr1)) + "\r\n" + 
+                  "Connection: close\r\n\r\n");
+      Serial.println("Request " + String(getFromEEPROM(url_addr1_params)) +" to " + String(getFromEEPROM(url_addr1)) + "  sent! )))");
+      delay(500);
     }
   }
+  
 
   // Timer 2 for Telegram
   unsigned long currentMillis2 = millis();
@@ -166,7 +169,7 @@ void checkCron()
     Serial.println("Cron 2 triggered");
     previousMillis2 = currentMillis2;
 
-    if (WiFi.status() == WL_CONNECTED && !stop_wifi) {
+
       
       WiFiClientSecure client2;
 
@@ -175,12 +178,6 @@ void checkCron()
         Serial.println("connection failed to telegram");
       } else {
         HTTPClient http;
-        http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/getUpdates");
-        int httpResponseCode = http.GET();
-        Serial.println(httpResponseCode);
-        String payload = http.getString();
-        Serial.println(payload); 
-
         http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/sendMessage");
         http.addHeader("Content-Type", "application/json");
 
@@ -190,20 +187,37 @@ void checkCron()
           just_started = false;
         }
 
-        httpResponseCode = http.POST(httpRequestData);
+        int httpResponseCode = http.POST(httpRequestData);
 
         Serial.print("Telegram response code: ");
         Serial.println(httpResponseCode);
-        payload = http.getString();
+        String payload = http.getString();
         Serial.println(payload); 
         http.end();
 
         delay(100);
       }
+    
+  }
+  
+}
+
+void reconnectWiFi()
+{
+  if (WiFi.status() != WL_CONNECTED && !stop_wifi) {
+    // Timer for WiFi reconnecting
+    unsigned long currentMillisWiFi = millis();
+    if (currentMillisWiFi - previousMillisWiFi >= 30000) {
+      previousMillisWiFi = currentMillisWiFi;
+      StartWiFi();
     }
   }
 
-  
+  if (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(LED_BUILTIN, HIGH);
+  } else {
+    digitalWrite(LED_BUILTIN, LOW);      
+  }
 }
 
 /////////////////////////// EEPROM FUNCTIONS //////////////////////
@@ -271,7 +285,7 @@ void StartWiFi() {
     WiFi.begin(s, p);
     int count = 0;
     while (WiFi.status() != WL_CONNECTED && count++ < 17) {
-      delay(1000);
+      delay(500);
       Serial.print(".");
     }
     if (WiFi.status() == WL_CONNECTED) {
@@ -310,12 +324,16 @@ String getEncryptionType(int thisType) {
 /////////////////////////////// END Wi-Fi CLIENT ////////////////////////////////
 
 void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+
   delay(200);
   EEPROM.begin(512);
-  delay(500);
+  delay(200);
   Serial.begin(115200);
   delay(100);
+  Serial.println("");
   Serial.print("Configuring access point...");
+  
   WiFi.softAP(ap_name, password);
 
   IPAddress myIP = WiFi.softAPIP();
@@ -370,4 +388,7 @@ void loop() {
     server.handleClient();
 
     checkCron();
+
+    reconnectWiFi();
+  
 }
