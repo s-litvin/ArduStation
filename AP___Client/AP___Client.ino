@@ -10,10 +10,13 @@
 const char * ap_name = "ArduStation";
 const char * password = "qazxswedc";
 
-unsigned long previousMillis = 0;
-const long interval = 300000;
+unsigned long previousMillis1 = 0;
+unsigned long previousMillis2 = 0;
+long interval1 = 10000;
+long interval2 = 20000;
 
 String host1 = "api.thingspeak.com";
+String host1_params = "/";
 String host2 = "api.telegram.org";
 
 String ssid = "";
@@ -23,16 +26,20 @@ unsigned long last_ping = 0;
 int ping_intrv = 15000;
 String page_title = "Страница управления ArduStation";
 String page_content = "Content";
-char css[] = "<style>.c1{position:absolute;left:15vw;right:15vw;background-color:#dedede;padding:20px;}ul.hr li{display:inline;margin-right:5px;}ul li{list-style-type:none;background-color:#ccc;border:1px solid #aaa;padding:10px;}ul.vert li{margin:4px;}a{color:black;text-decoration:none;}body{font-family:arial;}input{padding:9px;font-size:18px;line-height:18px;border:0;margin:0;}input[type=submit]{width:100%;}.t_l{text-align:left;}.t_r{text-align:right;}table{border:0;width:100%;}select{font-size:14px;line-height:14px;padding:9px}</style>";
+char css[] = "<style>.c1{position:absolute;left:15vw;right:15vw;background-color:#dedede;padding:20px;}ul.hr li{display:inline;margin-right:5px;}ul li{list-style-type:none;background-color:#ccc;border:1px solid #aaa;padding:10px;}ul.vert li{margin:4px;}a{color:black;text-decoration:none;}body{font-family:arial;}input{padding:5px;font-size:18px;line-height:18px;border:1;margin:0;}input[type=submit]{width:100%;}.t_l{text-align:left;}.t_r{text-align:right;}table{border:0;width:100%;}select{font-size:14px;line-height:14px;padding:9px}</style>";
 String status_message = "&status=Hello! I run and sends the data. Your esp8266.";
 
 bool stop_wifi = false;
+bool just_started = true;
 
 int ssid_addr[] = {0, 32}; // адрес, смещение
 int pass_addr[] = {32, 32};
-int url_addr1[] = {64, 160};
-int url_addr2[] = {224, 220};
-int chat_id_addr[] = {444, 16};
+int url_addr1[] = {64, 32};
+int url_addr2[] = {96, 64};
+int chat_id_addr[] = {160, 14};
+int url_addr1_params[] = {174, 64};
+int url_addr1_timer[] = {238, 16};
+int url_addr2_timer[] = {254, 16};
 
 
 ESP8266WebServer server(80);
@@ -83,6 +90,14 @@ void handleEvents ()
       host1 = getFromEEPROM(url_addr1);
     }
 
+    String url1_params = server.arg("url1_params");
+    if (url1_params != "") {
+      host1_params = url1_params;
+      saveToEEPROM(host1_params, url_addr1_params);
+    } else {
+      host1_params = getFromEEPROM(url_addr1_params);
+    }
+
     String url2 = server.arg("url2");
     if (url2 != "") {
       host2 = url2;
@@ -93,25 +108,63 @@ void handleEvents ()
 
     String chatId = server.arg("chat_id");
     if (chatId != "") {
-      saveToEEPROM(chatId, chat_id_addr);
+      saveToEEPROM(String(chatId), chat_id_addr);
     } else {
       chatId = getFromEEPROM(chat_id_addr);
     }
 
+    String host1_timer = server.arg("url1_timer");
+    if (host1_timer != "") {
+      saveToEEPROM(String(host1_timer), url_addr1_timer);
+      interval1 = host1_timer.toInt() * 1000;
+    } else {
+      host1_timer = getFromEEPROM(url_addr1_timer);
+    }
+
+    String host2_timer = server.arg("url2_timer");
+    if (host2_timer != "") {
+      saveToEEPROM(String(host2_timer), url_addr2_timer);
+      interval2 = host2_timer.toInt() * 1000;
+    } else {
+      host2_timer = getFromEEPROM(url_addr2_timer);
+    }
+
     sendHead();
     server.sendContent("<form method=\"post\">");
-    server.sendContent("<p>HTTP://<input type=\"text\" name=\"url1\" value=\"" + host1 + "\"></p>");
-    server.sendContent("<p>Telegram bot API token: <input type=\"text\" name=\"url2\" value=\"" + host2 + "\"> Chat id:<input type=\"text\" name=\"chat_id\" value=\"" + chatId + "\"></p>");
+    server.sendContent("<p>http:// <input type=\"text\" name=\"url1\" value=\"" + host1 + "\"> / <input type=\"text\" name=\"url1_params\" value=\"" + host1_params + "\"> ⏱️: <input type=\"number\" name=\"url1_timer\" size=6 value=\"" + host1_timer + "\">(sec)</p>");
+    server.sendContent("<p>Telegram bot API token: <input type=\"text\" name=\"url2\" value=\"" + host2 + "\"> Chat id:<input type=\"text\" name=\"chat_id\" value=\"" + chatId + "\"> ⏱️: <input type=\"number\" name=\"url2_timer\" size=6 value=\"" + host2_timer + "\">(sec)</p>");
     server.sendContent("<input type=\"submit\" value=\"SAVE\"></form>");
     sendTail();
 }
 
 void checkCron()
 {
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    Serial.println("Cron triggered");
-    previousMillis = currentMillis;
+  // Timer 1 for HTTP
+  unsigned long currentMillis1 = millis();
+  if ((currentMillis1 - previousMillis1 >= interval1 && interval1 > 5000)) {
+    Serial.println("Cron 1 triggered");
+    previousMillis1 = currentMillis1;
+
+    if (WiFi.status() == WL_CONNECTED && !stop_wifi) {
+
+      WiFiClient client;
+      if (!client.connect(String(getFromEEPROM(url_addr1)), 80)) {
+        Serial.println("connection failed to " + String(getFromEEPROM(url_addr1)));
+      } else {
+        client.print(String("GET ") + "/" + String(getFromEEPROM(url_addr1_params)) + " HTTP/1.1\r\n" +
+                    "Host: " + String(getFromEEPROM(url_addr1)) + "\r\n" + 
+                    "Connection: close\r\n\r\n");
+        Serial.println("Request " + String(getFromEEPROM(url_addr1_params)) +" to " + String(getFromEEPROM(url_addr1)) + "  sent! )))");
+        delay(500);
+      }
+    }
+  }
+
+  // Timer 2 for Telegram
+  unsigned long currentMillis2 = millis();
+  if (currentMillis2 - previousMillis2 >= interval2 && interval2 > 5000) {
+    Serial.println("Cron 2 triggered");
+    previousMillis2 = currentMillis2;
 
     if (WiFi.status() == WL_CONNECTED && !stop_wifi) {
       
@@ -120,42 +173,37 @@ void checkCron()
       client2.setInsecure();
       if (!client2.connect("api.telegram.org", 443)) {
         Serial.println("connection failed to telegram");
-        return;
+      } else {
+        HTTPClient http;
+        http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/getUpdates");
+        int httpResponseCode = http.GET();
+        Serial.println(httpResponseCode);
+        String payload = http.getString();
+        Serial.println(payload); 
+
+        http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/sendMessage");
+        http.addHeader("Content-Type", "application/json");
+
+        String httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🟢...\", \"disable_notification\": true}";
+        if (just_started) {
+          httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🕺🎉 Electricity is back!... \", \"disable_notification\": true}";
+          just_started = false;
+        }
+
+        httpResponseCode = http.POST(httpRequestData);
+
+        Serial.print("Telegram response code: ");
+        Serial.println(httpResponseCode);
+        payload = http.getString();
+        Serial.println(payload); 
+        http.end();
+
+        delay(100);
       }
-
-      HTTPClient http;
-      http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/getUpdates");
-      int httpResponseCode = http.GET();
-      Serial.println(httpResponseCode);
-      String payload = http.getString();
-      Serial.println(payload); 
-
-      http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/sendMessage");
-      http.addHeader("Content-Type", "application/json");
-      String httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"Online 📡\", \"disable_notification\": true}";           
-      httpResponseCode = http.POST(httpRequestData);
-      Serial.print("Telegram response code: ");
-      Serial.println(httpResponseCode);
-      payload = http.getString();
-      Serial.println(payload); 
-      http.end();
-
-      delay(100);
-
-      // if (!client2.connect("http://" + getFromEEPROM(url_addr1), 80)) {
-      //   Serial.print("connection failed to http");
-      //   return;
-      // }
-
-      // http.begin(client2, "http://" + String(getFromEEPROM(url_addr1)));
-      // httpResponseCode = http.GET();
-      // Serial.print("HTTP Response code: ");
-      // Serial.println(httpResponseCode);
-      // payload = http.getString();
-      // Serial.println(payload); 
-      // http.end();
     }
   }
+
+  
 }
 
 /////////////////////////// EEPROM FUNCTIONS //////////////////////
@@ -179,7 +227,10 @@ boolean saveToEEPROM(String value, int addr[2]) {
     }
     EEPROM.commit();
     return true;
-  } else return false;
+  } else {
+    Serial.println("Not pushed to EEPROM");
+    return false;
+  }
 }
 String getFromEEPROM(int addr[2]) {
   String result = "";
