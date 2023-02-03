@@ -7,7 +7,7 @@
 
 /* Set these to your desired credentials. */
 
-const char * ap_name = "ArduStation";
+const char * ap_name = "WiFiBot";
 const char * password = "qazxswedc";
 
 unsigned long previousMillis1 = 0;
@@ -25,7 +25,7 @@ String pass = "";
 
 unsigned long last_ping = 0;
 int ping_intrv = 15000;
-String page_title = "Страница управления ArduStation";
+String page_title = "Страница управления Wi-Fi bot";
 String page_content = "Content";
 char css[] = "<style>.s_b{background-color:#eee;padding:5px}.p_p{padding-top:35px}.c1{position:absolute;left:15vw;right:15vw;background-color:#dedede;padding:20px;}ul.hr li{display:inline;margin-right:5px;}ul li{list-style-type:none;background-color:#ccc;border:1px solid #aaa;padding:10px;}ul.vert li{margin:4px;}a{color:black;text-decoration:none;}body{font-family:arial;}input{padding:4px;font-size:14px;line-height:18px;border:1;margin:0;}input[type=submit]{width:50%;}.t_l{text-align:left;}.t_r{text-align:right;}table{border:0;width:100%;}select{font-size:14px;line-height:14px;padding:9px}</style>";
 String status_message = "&status=Hello! I run and sends the data. Your esp8266.";
