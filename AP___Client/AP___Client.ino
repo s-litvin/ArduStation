@@ -25,10 +25,9 @@ String pass = "";
 
 unsigned long last_ping = 0;
 int ping_intrv = 15000;
-String page_title = "Страница управления Wi-Fi bot";
+String page_title = "Страница управления Wi-Fi маяком";
 String page_content = "Content";
-char css[] = "<style>.s_b{background-color:#eee;padding:5px}.p_p{padding-top:35px}.c1{position:absolute;left:15vw;right:15vw;background-color:#dedede;padding:20px;}ul.hr li{display:inline;margin-right:5px;}ul li{list-style-type:none;background-color:#ccc;border:1px solid #aaa;padding:10px;}ul.vert li{margin:4px;}a{color:black;text-decoration:none;}body{font-family:arial;}input{padding:4px;font-size:14px;line-height:18px;border:1;margin:0;}input[type=submit]{width:50%;}.t_l{text-align:left;}.t_r{text-align:right;}table{border:0;width:100%;}select{font-size:14px;line-height:14px;padding:9px}</style>";
-String status_message = "&status=Hello! I run and sends the data. Your esp8266.";
+char css[] = "<style>.big_button {width: 32%;height: 150px;border: 0;background-color: darkgrey;font-size: 5em;margin: 2px;}.s_b{background-color:#eee;padding:5px}.p_p{padding-top:35px}.c1{position:absolute;left:15vw;right:15vw;background-color:#dedede;padding:20px;}ul.hr li{display:inline;margin-right:5px;}ul li{list-style-type:none;background-color:#ccc;border:1px solid #aaa;padding:10px;}ul.vert li{margin:4px;}a{color:black;text-decoration:none;}body{font-family:arial;}input{padding:4px;font-size:14px;line-height:18px;border:1;margin:0;}input[type=submit]{width:50%;}.t_l{text-align:left;}.t_r{text-align:right;}table{border:0;width:100%;}select{font-size:1em;line-height:14px;padding:9px}</style>";
 
 bool stop_wifi = false;
 bool just_started = true;
@@ -54,7 +53,7 @@ void sendHead() {
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
   server.sendContent("<html><head><meta charset=\"utf-8\"><title>" + page_title + "</title>" + css + "</head>");
-  server.sendContent("<body><div><span class=\"s_b\"><a href=\"/\">Home</a></span><span class=\"s_b\"><a href=\"/settings\">Settings</a></span><span class=\"s_b\"><a href=\"/events\">Events</a></span></div>");
+  server.sendContent("<body><a href=\"/\"><button class=\"big_button\">🏠</button></a><a href=\"/settings\"><button class=\"big_button\">📡</button></a><a href=\"/events\"><button class=\"big_button\">⏱️</button></a><br/>");
 }
 
 void sendTail() {
@@ -63,12 +62,12 @@ void sendTail() {
 
 // http://192.168.4.1
 void handleRoot() {
-  page_title = "Страница управления ArduStation";
+  page_title = "Страница управления Wi-Fi маяком";
   String status = (WiFi.status() != WL_CONNECTED) ? "<span style=\"color:red\">offline</span>" : "<span style=\"color:green\">online</span>";
   String ssid = getFromEEPROM(ssid_addr);
   IPAddress tmp_ip = WiFi.localIP();
   String ip(String(tmp_ip[0]) + "." + String(tmp_ip[1]) + "." + String(tmp_ip[2]) + "." + String(tmp_ip[3]));
-  page_content = "<table>";
+  page_content = "<table style=\"font-size:1.5em;\">";
   page_content += "<tr><td width=\"50%\" class=\"t_r\">Точка доступа: </td><td class=\"t_l\"><b>" + ssid + "</b></td></tr>";
   page_content += "<tr><td width=\"50%\" class=\"t_r\">Состояние: </td><td class=\"t_l\"><b>" + status + "</b></td></tr>";
   page_content += "<tr><td width=\"50%\" class=\"t_r\">Local IP: </td><td class=\"t_l\"><b><a href=\"http://" + ip + "\">" + ip + "</a></b></td></tr>";
@@ -132,7 +131,7 @@ void handleEvents ()
 
     sendHead();
     server.sendContent("<form method=\"post\">");
-    server.sendContent("<p class=\"p_p\">Web webhook URL:</p>http:// <input type=\"text\" name=\"url1\" value=\"" + host1 + "\"> / <input type=\"text\" name=\"url1_params\" value=\"" + host1_params + "\"> ⏱️: <input type=\"text\" name=\"url1_timer\" size=6 value=\"" + host1_timer + "\">(sec)");
+    server.sendContent("<p class=\"p_p\">Webhook URL:</p>http:// <input type=\"text\" name=\"url1\" value=\"" + host1 + "\"> / <input type=\"text\" name=\"url1_params\" value=\"" + host1_params + "\"> ⏱️: <input type=\"text\" name=\"url1_timer\" size=6 value=\"" + host1_timer + "\">(sec)");
     server.sendContent("<p class=\"p_p\">Telegram bot API token:</p><input type=\"text\" name=\"url2\" value=\"" + host2 + "\"> Chat id:<input type=\"text\" name=\"chat_id\" value=\"" + chatId + "\"> ⏱️: <input type=\"text\" name=\"url2_timer\" size=6 value=\"" + host2_timer + "\">(sec)");
     server.sendContent("<p class=\"p_p\"><input type=\"submit\" value=\"SAVE\"></p></form>");
     sendTail();
@@ -173,6 +172,7 @@ void checkCron()
     client2.setInsecure();
     if (!client2.connect("api.telegram.org", 443)) {
       Serial.println("connection failed to telegram");
+      just_started = true;
     } else {
       HTTPClient http;
       http.begin(client2, String("https://api.telegram.org/") + String(getFromEEPROM(url_addr2)) + "/sendMessage");
@@ -180,10 +180,12 @@ void checkCron()
 
       String httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🟢...\", \"disable_notification\": true}";
       if (just_started) {
-        httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🕺🎉 Electricity is back!... \", \"disable_notification\": true}";
+        httpRequestData = "{\"chat_id\": \"" + String(getFromEEPROM(chat_id_addr)) + "\", \"text\": \"🕺🎉 Connection is back!... \", \"disable_notification\": true}";
       }
 
       int httpResponseCode = http.POST(httpRequestData);
+
+      just_started = httpResponseCode != 200;
 
       Serial.print("Telegram response code: ");
       Serial.println(httpResponseCode);
@@ -203,13 +205,14 @@ void reconnectWiFi()
   if (WiFi.status() != WL_CONNECTED && !stop_wifi) {
     // Timer for WiFi reconnecting
     unsigned long currentMillisWiFi = millis();
-    if (currentMillisWiFi - previousMillisWiFi >= 30000) {
+    if (currentMillisWiFi - previousMillisWiFi >= 120000) {
       previousMillisWiFi = currentMillisWiFi;
       StartWiFi();
     }
   }
 
   if (WiFi.status() != WL_CONNECTED) {
+    just_started = true;
     digitalWrite(LED_BUILTIN, HIGH);
   } else {
     digitalWrite(LED_BUILTIN, LOW);      
@@ -280,13 +283,20 @@ void StartWiFi() {
     Serial.println(p);
     WiFi.begin(s, p);
     int count = 0;
-    while (WiFi.status() != WL_CONNECTED && count++ < 17) {
-      delay(500);
+    while (WiFi.status() != WL_CONNECTED && count++ < 15) {
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(150);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(150);
       Serial.print(".");
     }
     if (WiFi.status() == WL_CONNECTED) {
       Serial.println(WiFi.localIP());
-    } else Serial.println("Connecting to WiFi FAILED");
+      digitalWrite(LED_BUILTIN, LOW);
+    } else {
+      Serial.println("Connecting to WiFi FAILED");
+      digitalWrite(LED_BUILTIN, HIGH);
+    }
   }
 }
 
@@ -349,7 +359,7 @@ void setup() {
     String p = server.arg("pass");
     page_title = "Settings";
     if (s != "") {
-      Serial.println("Savingg");
+      Serial.println("Saving");
       saveSSIDAndPass(s, p);
       s = getFromEEPROM(ssid_addr);
       p = getFromEEPROM(pass_addr);
@@ -369,7 +379,7 @@ void setup() {
         }
       } else options += "<option></option>";
       options += "</select>";
-      page_content = "<form method=\"post\"><table><tr><td width=\"50%\" class=\"t_r\"><small>Имя точки доступа<small></td><td rowspan=2 class=\"t_l\">" + options + "</td></tr><tr><td class=\"t_r\"><small>Acces point name</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td width=\"50%\" class=\"t_r\"><small>Пароль<small></td><td rowspan=2 class=\"t_l\"><input type=\"password\" name=\"pass\"></td></tr><tr><td class=\"t_r\"><small>Password</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td></td><td class=\"t_l\"><input type=\"submit\" value=\"SAVE\"></td></tr></table></form>";
+      page_content = "<form method=\"post\"><table style=\"font-size:1.5em;\"><tr><td width=\"50%\" class=\"t_r\"><small>Имя точки доступа<small></td><td rowspan=2 class=\"t_l\">" + options + "</td></tr><tr><td class=\"t_r\"><small>Acces point name</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td width=\"50%\" class=\"t_r\"><small>Пароль</small></td><td rowspan=2 class=\"t_l\"><input type=\"password\" name=\"pass\"></td></tr><tr><td class=\"t_r\"><small>Password</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td></td><td class=\"t_l\"><input type=\"submit\" value=\"SAVE\"></td></tr></table></form>";
       sendPage();
     }
   });
@@ -390,5 +400,4 @@ void loop() {
     checkCron();
 
     reconnectWiFi();
-  
 }
