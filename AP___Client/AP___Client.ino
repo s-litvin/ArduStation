@@ -5,8 +5,6 @@
 #include <ArduinoJson.h>
 #include <ESP8266HTTPClient.h>
 
-/* Set these to your desired credentials. */
-
 const char * ap_name = "WiFiBot";
 const char * password = "qazxswedc";
 
@@ -359,7 +357,7 @@ void setup() {
     String p = server.arg("pass");
     page_title = "Settings";
     if (s != "") {
-      Serial.println("Saving");
+      Serial.println("Savingg");
       saveSSIDAndPass(s, p);
       s = getFromEEPROM(ssid_addr);
       p = getFromEEPROM(pass_addr);
@@ -379,7 +377,7 @@ void setup() {
         }
       } else options += "<option></option>";
       options += "</select>";
-      page_content = "<form method=\"post\"><table style=\"font-size:1.5em;\"><tr><td width=\"50%\" class=\"t_r\"><small>Имя точки доступа<small></td><td rowspan=2 class=\"t_l\">" + options + "</td></tr><tr><td class=\"t_r\"><small>Acces point name</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td width=\"50%\" class=\"t_r\"><small>Пароль</small></td><td rowspan=2 class=\"t_l\"><input type=\"password\" name=\"pass\"></td></tr><tr><td class=\"t_r\"><small>Password</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td></td><td class=\"t_l\"><input type=\"submit\" value=\"SAVE\"></td></tr></table></form>";
+      page_content = "<form method=\"post\"><table style=\"font-size:1.5em;\"><tr><td width=\"50%\" class=\"t_r\"><small>Имя точки доступа<small></td><td rowspan=2 class=\"t_l\">" + options + "</td></tr><tr><td class=\"t_r\"><small>Access point name</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td width=\"50%\" class=\"t_r\"><small>Пароль</small></td><td rowspan=2 class=\"t_l\"><input type=\"password\" name=\"pass\"></td></tr><tr><td class=\"t_r\"><small>Password</small></td></tr><tr><td colspan=2>&nbsp</td></tr><tr><td></td><td class=\"t_l\"><input type=\"submit\" value=\"SAVE\"></td></tr></table></form>";
       sendPage();
     }
   });
