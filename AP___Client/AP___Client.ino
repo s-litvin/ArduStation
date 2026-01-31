@@ -4,12 +4,13 @@
 #include <EEPROM.h>
 #include <ArduinoJson.h>
 #include <ESP8266HTTPClient.h>
-#include <ESP8266mDNS.h> // Для адреси http://mybot.local
-#include <DNSServer.h>   // Для Captive Portal (автоматичне вікно)
+#include <ESP8266mDNS.h>
+#include <DNSServer.h>
+#include <Updater.h> // <--- ДОДАНО: Бібліотека для прошивки
 
 // ================= НАЛАШТУВАННЯ =================
 const char * ap_name = "MyBot";
-const char * password = "qazxswedc"; // Пароль точки доступу
+const char * password = "qazxswedc"; 
 
 // ================= ЗМІННІ =================
 unsigned long previousMillis1 = 0;
@@ -20,7 +21,7 @@ long interval2 = 20000;
 
 String host1 = "api.thingspeak.com";
 String host1_params = "/";
-String host2 = "api.telegram.org"; // Сюди треба писати токен
+String host2 = "api.telegram.org"; 
 
 String ssid = "";
 String pass = "";
@@ -29,22 +30,21 @@ String page_title = "Wi-Fi Beacon Control";
 bool stop_wifi = false;
 bool just_started = true;
 
-// ================= КАРТА EEPROM (ОНОВЛЕНА) =================
-// Збільшено місце під chat_id, адреси зміщено
-int ssid_addr[] = {0, 32};          // 0..32
-int pass_addr[] = {32, 32};         // 32..64
-int url_addr1[] = {64, 32};         // 64..96 (ThingSpeak Host)
-int url_addr2[] = {96, 64};         // 96..160 (Telegram Token)
-int chat_id_addr[] = {160, 32};     // 160..192 (Chat ID - ЗБІЛЬШЕНО)
-int url_addr1_params[] = {192, 64}; // 192..256 (ThingSpeak Params)
-int url_addr1_timer[] = {256, 16};  // 256..272 (Timer 1)
-int url_addr2_timer[] = {272, 16};  // 272..288 (Timer 2)
+// ================= КАРТА EEPROM =================
+int ssid_addr[] = {0, 32};
+int pass_addr[] = {32, 32};
+int url_addr1[] = {64, 32};
+int url_addr2[] = {96, 64};
+int chat_id_addr[] = {160, 32};
+int url_addr1_params[] = {192, 64};
+int url_addr1_timer[] = {256, 16};
+int url_addr2_timer[] = {272, 16};
 
 // ================= ОБ'ЄКТИ =================
 ESP8266WebServer server(80);
-DNSServer dnsServer; // DNS сервер для Captive Portal
+DNSServer dnsServer; 
 
-// ================= HTML & CSS (СУЧАСНИЙ ДИЗАЙН) =================
+// ================= HTML & CSS =================
 const char PAGE_HEAD[] PROGMEM = R"raw(
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
@@ -54,28 +54,29 @@ const char PAGE_HEAD[] PROGMEM = R"raw(
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f2f4f8; color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
 .card { background: white; max-width: 500px; width: 100%; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; box-sizing: border-box; }
 h2 { margin-top: 0; color: #0056b3; text-align: center; }
-.btn-group { display: flex; justify-content: space-between; margin-bottom: 20px; }
-.big_button { flex: 1; height: 80px; border: none; border-radius: 10px; font-size: 2.5em; margin: 0 5px; cursor: pointer; transition: transform 0.1s; color: white; }
+.btn-group { display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 5px; }
+.big_button { flex: 1; min-width: 60px; height: 70px; border: none; border-radius: 10px; font-size: 2em; cursor: pointer; color: white; transition: 0.1s; }
 .big_button:active { transform: scale(0.95); }
 .btn-home { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 .btn-wifi { background: linear-gradient(135deg, #2af598 0%, #009efd 100%); }
 .btn-events { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); }
-.btn-reboot { background: #ff6b6b; font-size: 1.5em; height: 50px; width: 100%; margin-top: 10px; color: white; border: none; border-radius: 8px; cursor: pointer;}
+.btn-update { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); } /* <--- Стиль для кнопки оновлення */
+.btn-reboot { background: #ff6b6b; font-size: 1.2em; height: 50px; width: 100%; margin-top: 10px; color: white; border: none; border-radius: 8px; cursor: pointer;}
 input[type=text], input[type=password], select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-input[type=submit] { width: 100%; background-color: #007bff; color: white; padding: 14px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 18px; font-weight: bold; margin-top: 10px;}
-input[type=submit]:hover { background-color: #0056b3; }
+input[type=submit], .file-btn { width: 100%; background-color: #007bff; color: white; padding: 14px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 18px; font-weight: bold; margin-top: 10px;}
+input[type=file] { padding: 10px; background: #eee; border-radius: 6px; width: 100%; box-sizing: border-box; }
 .status-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
 .status-label { font-weight: bold; color: #555; }
 .status-val { color: #000; }
-a { text-decoration: none; }
+a { text-decoration: none; display:contents; }
 .note { font-size: 0.8em; color: #777; margin-top: 5px; display: block;}
 </style></head><body>
 <div class="card">
   <div class="btn-group">
-    <a href="/" style="flex:1"><button class="big_button btn-home">🏠</button></a>
-    <a href="/settings" style="flex:1"><button class="big_button btn-wifi">📶</button></a>
-    <a href="/events" style="flex:1"><button class="big_button btn-events">⏱️</button></a>
-  </div>
+    <a href="/"><button class="big_button btn-home">🏠</button></a>
+    <a href="/settings"><button class="big_button btn-wifi">📶</button></a>
+    <a href="/events"><button class="big_button btn-events">⏱️</button></a>
+    <a href="/firmware"><button class="big_button btn-update">💾</button></a> </div>
 )raw";
 
 const char PAGE_FOOT[] PROGMEM = R"raw(
@@ -91,7 +92,6 @@ void sendPage(String content) {
   server.send(200, "text/html", String(PAGE_HEAD) + content + String(PAGE_FOOT));
 }
 
-// Попереднє оголошення функцій EEPROM
 String getFromEEPROM(int addr[2]);
 boolean saveToEEPROM(String value, int addr[2]);
 void saveSSIDAndPass(String new_ssid, String new_pass);
@@ -120,7 +120,6 @@ void handleRoot() {
 }
 
 void handleEvents() {
-    // Обробка збереження
     if (server.method() == HTTP_POST) {
        if (server.hasArg("url1")) saveToEEPROM(server.arg("url1"), url_addr1);
        if (server.hasArg("url1_params")) saveToEEPROM(server.arg("url1_params"), url_addr1_params);
@@ -128,7 +127,6 @@ void handleEvents() {
           saveToEEPROM(server.arg("url1_timer"), url_addr1_timer);
           interval1 = server.arg("url1_timer").toInt() * 1000;
        }
-       
        if (server.hasArg("url2")) saveToEEPROM(server.arg("url2"), url_addr2);
        if (server.hasArg("chat_id")) saveToEEPROM(server.arg("chat_id"), chat_id_addr);
        if (server.hasArg("url2_timer")) {
@@ -137,7 +135,6 @@ void handleEvents() {
        }
     }
 
-    // Читання поточних значень
     host1 = getFromEEPROM(url_addr1);
     host1_params = getFromEEPROM(url_addr1_params);
     String t1 = getFromEEPROM(url_addr1_timer);
@@ -148,125 +145,93 @@ void handleEvents() {
 
     String html = "<h2>Webhooks & Timers</h2>";
     html += "<form method='post'>";
-    
     html += "<h3>📡 ThingSpeak (HTTP)</h3>";
-    html += "<span class='note'>Host (e.g. api.thingspeak.com)</span>";
-    html += "<input type='text' name='url1' value='" + host1 + "'>";
-    html += "<span class='note'>Params (e.g. /update?api_key=...)</span>";
-    html += "<input type='text' name='url1_params' value='" + host1_params + "'>";
-    html += "<span class='note'>Interval (sec)</span>";
-    html += "<input type='text' name='url1_timer' value='" + t1 + "'>";
-    
+    html += "<span class='note'>Host</span><input type='text' name='url1' value='" + host1 + "'>";
+    html += "<span class='note'>Params</span><input type='text' name='url1_params' value='" + host1_params + "'>";
+    html += "<span class='note'>Interval (sec)</span><input type='text' name='url1_timer' value='" + t1 + "'>";
     html += "<hr>";
-    
     html += "<h3>✈️ Telegram (HTTPS)</h3>";
-    html += "<span class='note'>Bot Token (Add 'bot' prefix manually!)</span>";
-    html += "<input type='text' name='url2' placeholder='bot123456:ABC-...' value='" + host2 + "'>";
-    html += "<span class='note'>Chat ID</span>";
-    html += "<input type='text' name='chat_id' value='" + cid + "'>";
-    html += "<span class='note'>Interval (sec)</span>";
-    html += "<input type='text' name='url2_timer' value='" + t2 + "'>";
-    
-    html += "<input type='submit' value='SAVE SETTINGS'>";
-    html += "</form>";
-
+    html += "<span class='note'>Bot Token (Add 'bot' manually!)</span>";
+    html += "<input type='text' name='url2' placeholder='bot123456:ABC...' value='" + host2 + "'>";
+    html += "<span class='note'>Chat ID</span><input type='text' name='chat_id' value='" + cid + "'>";
+    html += "<span class='note'>Interval (sec)</span><input type='text' name='url2_timer' value='" + t2 + "'>";
+    html += "<input type='submit' value='SAVE SETTINGS'></form>";
     sendPage(html);
 }
 
 void handleSettings() {
     String s = server.arg("ssid");
-    String p = server.arg("pass");
-    
     if (s != "") {
-      saveSSIDAndPass(s, p);
-      sendPage("<h2>Saved!</h2><p>Connecting to <b>" + s + "</b>...</p><p>Please reconnect to the new WiFi IP or use <a href='http://mybot.local'>http://mybot.local</a></p>");
-      delay(500);
-      ESP.restart(); // Краще перезавантажити для чистого підключення
+      saveSSIDAndPass(s, server.arg("pass"));
+      sendPage("<h2>Saved!</h2><p>Rebooting...</p>");
+      delay(1000);
+      ESP.restart();
     } else {
       int numSsid = WiFi.scanNetworks();
       String options = "<select name='ssid'>";
       if (numSsid != -1) {
-        for (int thisNet = 0; thisNet < numSsid; thisNet++) {
-          String str(WiFi.SSID(thisNet));
-          options += "<option value=\"" + str + "\">" + str + " (" + String(WiFi.RSSI(thisNet)) + "dB)</option>";
-        }
+        for (int i = 0; i < numSsid; i++) options += "<option value=\"" + WiFi.SSID(i) + "\">" + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + "dB)</option>";
       }
       options += "</select>";
-      
-      String html = "<h2>WiFi Connection</h2>";
-      html += "<form method='post'>";
-      html += "<span class='note'>Select Network</span>";
-      html += options;
-      html += "<span class='note'>Password</span>";
-      html += "<input type='password' name='pass'>";
-      html += "<input type='submit' value='CONNECT & REBOOT'>";
-      html += "</form>";
+      String html = "<h2>WiFi Connection</h2><form method='post'>";
+      html += "<span class='note'>Select Network</span>" + options;
+      html += "<span class='note'>Password</span><input type='password' name='pass'>";
+      html += "<input type='submit' value='CONNECT & REBOOT'></form>";
       sendPage(html);
     }
 }
 
+// === НОВА ФУНКЦІЯ: Сторінка оновлення ===
+void handleFirmware() {
+  String html = "<h2>Firmware Update</h2>";
+  html += "<p>Upload <b>.bin</b> file.</p>";
+  // Важливо: enctype='multipart/form-data' для передачі файлів
+  html += "<form method='POST' action='/update' enctype='multipart/form-data'>";
+  html += "<input type='file' name='update' accept='.bin'>";
+  html += "<input type='submit' value='🚀 FLASH FIRMWARE' onclick='this.value=\"Wait...\";'>";
+  html += "</form>";
+  html += "<p class='note'>⚠️ Do not turn off power!</p>";
+  sendPage(html);
+}
+
 void handleReboot() {
-  server.send(200, "text/html", "<h2>Rebooting...</h2><p>Device is restarting. Reconnect in ~15 seconds.</p>");
+  server.send(200, "text/html", "<h2>Rebooting...</h2>");
   delay(1000);
   ESP.restart();
 }
 
-void handleNotFound() {
-  // Якщо запит не знайдено - перенаправляємо на головну (для Captive Portal)
-  handleRoot(); 
-}
+void handleNotFound() { handleRoot(); }
 
 // ================= CRON & LOGIC =================
 
 void checkCron() {
   if (WiFi.status() != WL_CONNECTED || stop_wifi) return;
-  
   unsigned long currentMillis = millis();
 
-  // --- Timer 1 (HTTP) ---
   if (just_started || (currentMillis - previousMillis1 >= interval1 && interval1 > 5000)) {
     Serial.println("Cron 1 triggered");
     previousMillis1 = currentMillis;
-
     WiFiClient client;
     String h1 = getFromEEPROM(url_addr1);
-    if (!client.connect(h1, 80)) {
-      Serial.println("Connection failed to " + h1);
-    } else {
-      client.print(String("GET ") + getFromEEPROM(url_addr1_params) + " HTTP/1.1\r\n" +
-                  "Host: " + h1 + "\r\n" + 
-                  "Connection: close\r\n\r\n");
-      Serial.println("Request sent to " + h1);
+    if (client.connect(h1, 80)) {
+      client.print(String("GET ") + getFromEEPROM(url_addr1_params) + " HTTP/1.1\r\nHost: " + h1 + "\r\nConnection: close\r\n\r\n");
     }
   }
 
-  // --- Timer 2 (Telegram HTTPS) ---
   if (just_started || (currentMillis - previousMillis2 >= interval2 && interval2 > 5000)) {
     Serial.println("Cron 2 triggered");
     previousMillis2 = currentMillis;
-
     WiFiClientSecure client2;
-    client2.setInsecure(); // Ігноруємо сертифікати (важливо для Telegram)
-    
-    if (!client2.connect("api.telegram.org", 443)) {
-      Serial.println("Connection failed to Telegram");
-    } else {
+    client2.setInsecure();
+    if (client2.connect("api.telegram.org", 443)) {
       HTTPClient http;
-      // В налаштуваннях ти маєш писати "bot12345:..."
       String url = "https://api.telegram.org/" + getFromEEPROM(url_addr2) + "/sendMessage";
-      
       http.begin(client2, url);
       http.addHeader("Content-Type", "application/json");
-
       String msg = just_started ? "🕺🎉 I am back!" : "🟢...";
-      String chatID = getFromEEPROM(chat_id_addr);
-      
-      String json = "{\"chat_id\": \"" + chatID + "\", \"text\": \"" + msg + "\", \"disable_notification\": true}";
-
-      int httpCode = http.POST(json);
-      Serial.print("Telegram Response: "); Serial.println(httpCode);
-      
-      if (httpCode > 0) just_started = false;
+      String json = "{\"chat_id\": \"" + getFromEEPROM(chat_id_addr) + "\", \"text\": \"" + msg + "\", \"disable_notification\": true}";
+      int code = http.POST(json);
+      if (code > 0) just_started = false;
       http.end();
     }
   }
@@ -274,11 +239,11 @@ void checkCron() {
 
 void reconnectWiFi() {
   if (WiFi.status() != WL_CONNECTED && !stop_wifi) {
-    if (millis() - previousMillisWiFi >= 60000) { // Пробуємо реконект раз на хвилину
+    if (millis() - previousMillisWiFi >= 60000) {
       previousMillisWiFi = millis();
       WiFi.begin(getFromEEPROM(ssid_addr), getFromEEPROM(pass_addr));
     }
-    digitalWrite(LED_BUILTIN, HIGH); // Горить якщо немає інету (на NodeMCU LOW = on, HIGH = off, залежить від плати)
+    digitalWrite(LED_BUILTIN, HIGH);
   } else {
     digitalWrite(LED_BUILTIN, LOW);      
   }
@@ -325,47 +290,64 @@ void setup() {
   EEPROM.begin(512);
   delay(500);
 
-  // Відновлення таймерів
   String t1 = getFromEEPROM(url_addr1_timer);
   String t2 = getFromEEPROM(url_addr2_timer);
   if (t1.length() > 0) interval1 = t1.toInt() * 1000;
   if (t2.length() > 0) interval2 = t2.toInt() * 1000;
 
-  // Wi-Fi AP
   WiFi.softAP(ap_name, password);
-  Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
-
-  // DNS Server (Captive Portal)
-  // Перехоплює всі запити і відправляє на IP плати
   dnsServer.start(53, "*", WiFi.softAPIP());
+  if (MDNS.begin("mybot")) Serial.println("MDNS started");
 
-  // mDNS
-  if (MDNS.begin("mybot")) { // http://mybot.local
-    Serial.println("MDNS started");
-  }
-
-  // Web Server Routes
   server.on("/", handleRoot);
   server.on("/settings", handleSettings);
   server.on("/events", handleEvents);
-  server.on("/reboot", handleReboot); // Кнопка перезавантаження
-  server.onNotFound(handleNotFound);  // Для Captive Portal
+  server.on("/firmware", handleFirmware); // <--- Кнопка для юзера
+  server.on("/reboot", handleReboot);
+  server.onNotFound(handleNotFound);
+
+  // === ОБРОБНИК ПРОШИВКИ (Системна частина) ===
+  server.on("/update", HTTP_POST, []() {
+    // 1. Відповідь браузеру після завершення
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK! REBOOTING...");
+    ESP.restart();
+  }, []() {
+    // 2. Процес завантаження файлу
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+      Serial.printf("Update: %s\n", upload.filename.c_str());
+      WiFiUDP::stopAll(); // Зупиняємо зайве
+      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+      if (!Update.begin(maxSketchSpace)) { 
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) {
+        Serial.printf("Update Success: %u\n", upload.totalSize);
+      } else {
+        Update.printError(Serial);
+      }
+    }
+  });
 
   server.begin();
   Serial.println("HTTP server started");
 
-  // Спроба підключення до збереженої мережі при старті
   String saved_ssid = getFromEEPROM(ssid_addr);
   if (saved_ssid.length() > 1) {
-    Serial.println("Connecting to stored WiFi: " + saved_ssid);
     WiFi.begin(saved_ssid, getFromEEPROM(pass_addr));
   }
 }
 
 void loop() {
-  dnsServer.processNextRequest(); // Обробка DNS для Captive Portal
-  MDNS.update();                  // Обробка mDNS
-  server.handleClient();          // Обробка веб-сторінок
-  checkCron();                    // Таймери
-  reconnectWiFi();                // Підтримка з'єднання
+  dnsServer.processNextRequest(); 
+  MDNS.update();                  
+  server.handleClient();          
+  checkCron();                    
+  reconnectWiFi();                
 }
