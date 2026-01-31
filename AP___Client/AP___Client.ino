@@ -34,10 +34,10 @@ int ssid_addr[] = {0, 32}; // адрес, смещение
 int pass_addr[] = {32, 32};
 int url_addr1[] = {64, 32};
 int url_addr2[] = {96, 64};
-int chat_id_addr[] = {160, 14};
-int url_addr1_params[] = {174, 64};
-int url_addr1_timer[] = {238, 16};
-int url_addr2_timer[] = {254, 16};
+int chat_id_addr[] = {160, 32};     // 160..192 (Було 14, стало 32)
+int url_addr1_params[] = {192, 64}; // 192..256 (Зсунуто з 174)
+int url_addr1_timer[] = {256, 16};  // 256..272 (Зсунуто з 238)
+int url_addr2_timer[] = {272, 16};  // 272..288 (Зсунуто з 254)
 
 
 ESP8266WebServer server(80);
