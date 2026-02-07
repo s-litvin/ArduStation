@@ -16,6 +16,8 @@ const char * password = "qazxswedc";
 unsigned long previousMillis1 = 0;
 unsigned long previousMillis2 = 0;
 unsigned long previousMillisWiFi = 0;
+unsigned long lastNetworkActivity = 0;
+const long NETWORK_DELAY = 3000;
 long interval1 = 10000;
 long interval2 = 20000;
 
@@ -206,33 +208,72 @@ void handleNotFound() { handleRoot(); }
 
 void checkCron() {
   if (WiFi.status() != WL_CONNECTED || stop_wifi) return;
+  
   unsigned long currentMillis = millis();
 
+  // --- Cron 1: ThingSpeak ---
+  // Перевіряємо, чи настав час
   if (just_started || (currentMillis - previousMillis1 >= interval1 && interval1 > 5000)) {
-    Serial.println("Cron 1 triggered");
-    previousMillis1 = currentMillis;
+    previousMillis1 = currentMillis; // Одразу оновлюємо таймер, щоб не спрацювало двічі
+    
+    Serial.println("\n>>> Cron 1: ThingSpeak Start");
+    
     WiFiClient client;
     String h1 = getFromEEPROM(url_addr1);
+    
     if (client.connect(h1, 80)) {
       client.print(String("GET ") + getFromEEPROM(url_addr1_params) + " HTTP/1.1\r\nHost: " + h1 + "\r\nConnection: close\r\n\r\n");
+      
+      unsigned long timeout = millis();
+      while (client.available() == 0) {
+        if (millis() - timeout > 2000) break;
+        delay(10);
+      }
+      client.stop();
+      Serial.println(">>> Cron 1: Done");
+    } else {
+      Serial.println(">>> Cron 1: Connect Failed");
     }
+
+    // ВАЖЛИВО: Робимо паузу, щоб стек WiFi очистився перед наступним запитом
+    delay(2000); 
   }
 
+  // Оновлюємо currentMillis після затримки, щоб другий таймер був точнішим
+  currentMillis = millis();
+
+  // --- Cron 2: Telegram ---
   if (just_started || (currentMillis - previousMillis2 >= interval2 && interval2 > 5000)) {
-    Serial.println("Cron 2 triggered");
-    previousMillis2 = currentMillis;
+    previousMillis2 = currentMillis; // Оновлюємо таймер
+    
+    Serial.println("\n>>> Cron 2: Telegram Start");
+
     WiFiClientSecure client2;
     client2.setInsecure();
+    
     if (client2.connect("api.telegram.org", 443)) {
       HTTPClient http;
       String url = "https://api.telegram.org/" + getFromEEPROM(url_addr2) + "/sendMessage";
+      
       http.begin(client2, url);
       http.addHeader("Content-Type", "application/json");
+
       String msg = just_started ? "🕺🎉 I am back!" : "🟢...";
+      // Додаємо timestamp до повідомлення, щоб Telegram не кешував однакові повідомлення
       String json = "{\"chat_id\": \"" + getFromEEPROM(chat_id_addr) + "\", \"text\": \"" + msg + "\", \"disable_notification\": true}";
-      int code = http.POST(json);
-      if (code > 0) just_started = false;
+      
+      int httpCode = http.POST(json);
       http.end();
+      client2.stop();
+      
+      if (httpCode > 0) {
+        just_started = false;
+        Serial.printf(">>> Cron 2: Done (Code %d)\n", httpCode);
+      } else {
+        Serial.printf(">>> Cron 2: Failed (Error: %s)\n", http.errorToString(httpCode).c_str());
+      }
+    } else {
+      Serial.println(">>> Cron 2: Connect Failed");
     }
   }
 }
